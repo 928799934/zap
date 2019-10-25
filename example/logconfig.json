@@ -1,0 +1,31 @@
+{
+  "level": "info",
+  "development": false,
+  "disableCaller": false,
+  "disableStacktrace": false,
+  "sampling": {
+    "initial": 10,
+    "thereafter": 10
+  },
+  "errorOutputPaths": ["stderr"],
+  "initialFields": {
+    "foo": "bar"
+  },
+
+  "outputs": ["stdout", "./aaa"],
+  "retentionHours": 1,
+
+  "encoding": "json",
+  "encoderConfig": {
+    "messageKey": "message",
+    "nameKey": "aaa",
+    "nameEncoder": "full",
+    "levelKey": "level",
+    "levelEncoder": "capital",
+    "timeKey": "ts",
+    "timeEncoder": "iso8601",
+    "durationEncoder": "string",
+    "callerKey": "caller",
+    "callerEncoder": "full"
+  }
+}
