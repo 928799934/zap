@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	logger *zap.Logger
+	core   *zap.Logger
 	cleans []*clean
 	files  []*writer
 )
@@ -30,6 +30,11 @@ func LoadConfiguration(filename string) *Logger {
 	if err != nil {
 		panic(err)
 	}
+	return LoadConfigurationByContent(jsonData)
+}
+
+// LoadConfigurationByContent ...
+func LoadConfigurationByContent(jsonData []byte) *Logger {
 	cfg := &Config{}
 	if err := json.Unmarshal(jsonData, cfg); err != nil {
 		panic(err)
@@ -44,47 +49,44 @@ func LoadConfiguration(filename string) *Logger {
 		panic("encoding error is " + cfg.Encoding)
 	}
 	// 生成logger
-	logger, err = cfg.Build()
+	logger, err := cfg.Build()
 	if err != nil {
 		panic(err)
 	}
 	// 替换logger输出
-	logger = logger.WithOptions(zap.WrapCore(func(zapcore.Core) zapcore.Core {
+	core = logger.WithOptions(zap.WrapCore(func(zapcore.Core) zapcore.Core {
 		return zapcore.NewCore(encoder, open(cfg.Outputs, cfg.RetentionHours), cfg.Level)
 	}))
-	return logger
+	return core
 }
 
 // Close ...
 func Close() {
-	logger.Sync()
+	core.Sync()
 	for _, f := range files {
 		f.close()
 	}
 	for _, c := range cleans {
-		c.Close()
+		c.close()
 	}
 }
 
 // open 打开文件 启动定时清理
 func open(paths []string, retentionHours int) zapcore.WriteSyncer {
-	writers := make([]zapcore.WriteSyncer, 0, len(paths))
+	writeSyncerList := make([]zapcore.WriteSyncer, 0, len(paths))
 	for _, path := range paths {
 		switch path {
 		case "stdout":
-			writers = append(writers, os.Stdout)
-			// Don't close standard out.
-			continue
+			writeSyncerList = append(writeSyncerList, os.Stdout)
 		case "stderr":
-			writers = append(writers, os.Stderr)
-			// Don't close standard error.
-			continue
+			writeSyncerList = append(writeSyncerList, os.Stderr)
+		default:
+			f := newWriter(path)
+			files = append(files, f)
+			writeSyncerList = append(writeSyncerList, f)
+			// 增加清理队列
+			cleans = append(cleans, newClean(path, retentionHours))
 		}
-		f := newWriter(path)
-		files = append(files, f)
-		writers = append(writers, f)
-		c := newClean(path, retentionHours)
-		cleans = append(cleans, c)
 	}
-	return zap.CombineWriteSyncers(writers...)
+	return zap.CombineWriteSyncers(writeSyncerList...)
 }

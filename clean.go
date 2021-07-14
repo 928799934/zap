@@ -38,7 +38,7 @@ func newClean(file string, retentionHours int) *clean {
 	return c
 }
 
-func (c *clean) Close() {
+func (c *clean) close() {
 	c.cancel()
 	c.Wait()
 }

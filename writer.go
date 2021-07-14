@@ -14,7 +14,7 @@ const (
 type writer struct {
 	file     string
 	ext      string
-	lastfile string
+	lastFile string
 	f        *os.File
 }
 
@@ -26,19 +26,17 @@ func newWriter(file string) *writer {
 }
 
 func (w *writer) Write(b []byte) (int, error) {
-	nowfile := w.file + time.Now().Format(w.ext)
-	if nowfile != w.lastfile {
+	nowFile := w.file + time.Now().Format(w.ext)
+	if nowFile != w.lastFile {
 		if w.f != nil {
-			if err := w.close(); err != nil {
-				return 0, err
-			}
+			w.close()
 		}
-		f, err := os.OpenFile(nowfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+		f, err := os.OpenFile(nowFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			return 0, err
 		}
 		w.f = f
-		w.lastfile = nowfile
+		w.lastFile = nowFile
 	}
 	return w.f.Write(b)
 }
@@ -47,17 +45,13 @@ func (w *writer) Sync() error {
 	return w.f.Sync()
 }
 
-func (w *writer) close() error {
+func (w *writer) close() {
 	if w.f == nil {
-		return nil
+		return
 	}
-	if err := w.f.Sync(); err != nil {
-		return err
-	}
-	if err := w.f.Close(); err != nil {
-		return err
-	}
+	_ = w.f.Sync()
+	_ = w.f.Close()
 	w.f = nil
-	w.lastfile = ""
-	return nil
+	w.lastFile = ""
+	return
 }
