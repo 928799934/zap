@@ -9,32 +9,27 @@ import (
 )
 
 var (
-	core   *zap.Logger
+	core   *Logger
 	cleans []*clean
 	files  []*writer
 )
 
-// Config ...
-type Config struct {
-	zap.Config
-	Outputs        []string `json:"outputs" yaml:"outputs"`
-	RetentionHours int      `json:"retentionHours" yaml:"retentionHours"`
-}
-
-// Logger zap.Logger
-type Logger = zap.Logger
-
 // LoadConfiguration ...
-func LoadConfiguration(filename string) *Logger {
+func LoadConfiguration(filename string) {
 	jsonData, err := ioutil.ReadFile(filename)
 	if err != nil {
 		panic(err)
 	}
-	return LoadConfigurationByContent(jsonData)
+	LoadConfigurationByContent(jsonData)
+}
+
+// GetLogger ...
+func GetLogger() *Logger {
+	return core
 }
 
 // LoadConfigurationByContent ...
-func LoadConfigurationByContent(jsonData []byte) *Logger {
+func LoadConfigurationByContent(jsonData []byte) {
 	cfg := &Config{}
 	if err := json.Unmarshal(jsonData, cfg); err != nil {
 		panic(err)
@@ -48,6 +43,7 @@ func LoadConfigurationByContent(jsonData []byte) *Logger {
 	default:
 		panic("encoding error is " + cfg.Encoding)
 	}
+	zapcore.NewMultiWriteSyncer()
 	// 生成logger
 	logger, err := cfg.Build()
 	if err != nil {
@@ -55,9 +51,25 @@ func LoadConfigurationByContent(jsonData []byte) *Logger {
 	}
 	// 替换logger输出
 	core = logger.WithOptions(zap.WrapCore(func(zapcore.Core) zapcore.Core {
-		return zapcore.NewCore(encoder, open(cfg.Outputs, cfg.RetentionHours), cfg.Level)
+		return zapcore.NewCore(encoder, func() zapcore.WriteSyncer {
+			writeSyncerList := make([]zapcore.WriteSyncer, 0, len(cfg.Outputs))
+			for _, path := range cfg.Outputs {
+				switch path {
+				case "stdout":
+					writeSyncerList = append(writeSyncerList, os.Stdout)
+				case "stderr":
+					writeSyncerList = append(writeSyncerList, os.Stderr)
+				default:
+					f := newWriter(path)
+					files = append(files, f)
+					writeSyncerList = append(writeSyncerList, f)
+					// 增加清理队列
+					cleans = append(cleans, newClean(path, cfg.RetentionHours))
+				}
+			}
+			return zap.CombineWriteSyncers(writeSyncerList...)
+		}(), cfg.Level)
 	}))
-	return core
 }
 
 // Close ...
@@ -69,24 +81,4 @@ func Close() {
 	for _, c := range cleans {
 		c.close()
 	}
-}
-
-// open 打开文件 启动定时清理
-func open(paths []string, retentionHours int) zapcore.WriteSyncer {
-	writeSyncerList := make([]zapcore.WriteSyncer, 0, len(paths))
-	for _, path := range paths {
-		switch path {
-		case "stdout":
-			writeSyncerList = append(writeSyncerList, os.Stdout)
-		case "stderr":
-			writeSyncerList = append(writeSyncerList, os.Stderr)
-		default:
-			f := newWriter(path)
-			files = append(files, f)
-			writeSyncerList = append(writeSyncerList, f)
-			// 增加清理队列
-			cleans = append(cleans, newClean(path, retentionHours))
-		}
-	}
-	return zap.CombineWriteSyncers(writeSyncerList...)
 }

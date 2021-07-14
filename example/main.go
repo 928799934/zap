@@ -6,10 +6,10 @@ import (
 )
 
 func main() {
-	logger := zap.LoadConfiguration("./logconfig.json")
+	zap.LoadConfiguration("./logconfig.json")
 	defer zap.Close()
+	logger := zap.GetLogger()
 	log := logger.Sugar()
-
 	for {
 		log.Error("error")
 		log.Info("info")
